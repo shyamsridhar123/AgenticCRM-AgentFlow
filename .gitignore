@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build
+dist/
+build/
+*.egg
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/Cache
+.pytest_cache/
+.coverage
+htmlcov/
+cache/
+solver_cache/
+
+# Artifacts (keep structure but ignore generated files)
+*.gemini/
+
+# Database
+*.db
+*.sqlite
+
+# AgentFlow SDK (cloned, not committed)
+backend/agentflow_sdk/
