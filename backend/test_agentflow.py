@@ -69,9 +69,9 @@ except Exception as e:
 # Test 4: Full solver test
 print("\n4. Testing AgentFlow solver with a query...")
 try:
-    # Use construct_solver with gpt-4o as it's a supported engine name
+    # Use construct_solver with Azure OpenAI deployment
     solver = construct_solver(
-        llm_engine_name="gpt-4o",  # Use standard OpenAI for testing
+        llm_engine_name="gpt-5.2-chat",  # Azure OpenAI deployment
         enabled_tools=["Base_Generator_Tool"],
         output_types="direct",
         max_steps=3,

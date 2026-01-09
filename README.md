@@ -411,7 +411,7 @@ For advanced use cases with multiple tools:
 from agentflow.solver import construct_solver
 
 solver = construct_solver(
-    llm_engine_name="gpt-4o",
+    llm_engine_name="gpt-5.2-chat",  # Azure OpenAI deployment
     enabled_tools=["Base_Generator_Tool", "Python_Coder_Tool", "Google_Search_Tool"],
     output_types="final,direct",
     max_steps=10,

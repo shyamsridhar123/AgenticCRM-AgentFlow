@@ -22,7 +22,14 @@ from app.agents.nl_query_agent import NLQueryAgent
 from app.agents.meeting_agent import MeetingAgent
 from app.agents.pipeline_agent import PipelineAgent
 from app.agents.email_agent import EmailAgent
-from app.agentflow_crm import create_agentflow_solver
+
+# Import the REAL AgentFlow solver (not the simplified NL2SQL version)
+try:
+    from app.agentflow_solver import create_agentflow_crm_solver
+    USE_FULL_AGENTFLOW = True
+except ImportError:
+    from app.agentflow_crm import create_agentflow_solver as create_agentflow_crm_solver
+    USE_FULL_AGENTFLOW = False
 
 
 # ============================================
@@ -89,13 +96,15 @@ async def lifespan(app: FastAPI):
     app.state.email_agent = EmailAgent(verbose=settings.agentflow_verbose)
     
     # Initialize AgentFlow solver for enhanced query processing
-    app.state.agentflow_solver = create_agentflow_solver(
+    app.state.agentflow_solver = create_agentflow_crm_solver(
         max_steps=10, 
         verbose=settings.agentflow_verbose
     )
     
-    print("✅ AI Agents initialized (with AgentFlow)")
+    solver_type = "Full SDK" if USE_FULL_AGENTFLOW else "Simplified"
+    print(f"✅ AI Agents initialized (AgentFlow {solver_type})")
     print("   Components: Planner, Executor, Verifier, Memory")
+    print(f"   Tools: CRM_Database_Query, CRM_Analytics, CRM_Reasoning")
     print(f"🌐 Server running at http://{settings.app_host}:{settings.app_port}")
     
     yield

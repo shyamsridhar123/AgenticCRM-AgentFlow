@@ -157,3 +157,32 @@ def create_gpt5_engine(temperature: float = 1.0) -> AzureOpenAIEngine:
         deployment_name=settings.azure_openai_gpt5_deployment_name,
         temperature=temperature
     )
+
+
+# Singleton engine instance for simple function calls
+_default_engine: Optional[AzureOpenAIEngine] = None
+
+
+def get_llm_response(prompt: str, max_tokens: int = 1000, system_prompt: Optional[str] = None) -> str:
+    """
+    Simple function to get LLM response without managing engine instances.
+    Used by AgentFlow solver components.
+    
+    Args:
+        prompt: The prompt to send
+        max_tokens: Maximum tokens in response
+        system_prompt: Optional system prompt
+        
+    Returns:
+        The LLM response text
+    """
+    global _default_engine
+    
+    if _default_engine is None:
+        _default_engine = AzureOpenAIEngine(temperature=1.0)  # GPT-5.2 only supports temp=1
+    
+    return _default_engine.generate(
+        prompt=prompt,
+        system_prompt=system_prompt,
+        max_tokens=max_tokens
+    )
