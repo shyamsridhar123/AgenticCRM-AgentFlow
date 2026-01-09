@@ -163,41 +163,50 @@ Analyze this query:
 2. What data do they need?
 3. Which tools would be most helpful?
 4. What is the expected output format?
-5. Is the query clear enough to proceed, or is it too vague/ambiguous?
 
-If the query is vague (like "what does this mean" without context, or "help me"), 
-mark it as AMBIGUOUS and suggest what clarification is needed.
+Assume reasonable defaults for any unspecified parameters:
+- Time range: default to all time unless specified
+- Status: include all statuses unless specified
+- Limit: use sensible defaults (e.g., top 10, top 50)
 
-Provide a concise analysis:"""
+Provide a concise analysis and proceed with the query:"""
 
         return get_llm_response(prompt, max_tokens=500)
     
     def is_query_ambiguous(self, query: str, analysis: str) -> Tuple[bool, str]:
-        """Check if query is too vague to process and generate clarifying response."""
-        # Check for common vague patterns
+        """Check if query is too vague to process and generate clarifying response.
+        
+        IMPORTANT: Be conservative - only flag truly vague queries that have no clear intent.
+        Clear database queries like 'top 10 opportunities by amount' should NEVER be flagged.
+        """
+        # Only flag truly vague patterns with no actionable intent
         vague_patterns = [
             "what does this mean",
             "what is this",
             "explain this",
-            "help me",
-            "i don't understand",
+            "help me understand",
+            "i don't get it",
             "what happened",
-            "tell me more",
-            "what do you think",
-            "is this good",
-            "is this bad"
+            "huh",
+            "???"
         ]
         
         query_lower = query.lower().strip()
         
-        # Check if query matches vague patterns AND is very short
-        is_vague = any(pattern in query_lower for pattern in vague_patterns) and len(query.split()) < 10
+        # Only flag if the query is VERY short (under 5 words) AND matches a vague pattern
+        # AND doesn't contain any CRM-related keywords
+        crm_keywords = ['lead', 'contact', 'account', 'opportunity', 'deal', 'pipeline', 
+                        'revenue', 'sales', 'activity', 'campaign', 'top', 'show', 'list',
+                        'find', 'get', 'what', 'how many', 'total', 'count', 'amount']
         
-        # Also check if analysis mentions ambiguity
-        is_vague = is_vague or "ambiguous" in analysis.lower() or "unclear" in analysis.lower()
+        has_crm_keyword = any(kw in query_lower for kw in crm_keywords)
+        is_short = len(query.split()) < 5
+        matches_vague = any(pattern in query_lower for pattern in vague_patterns)
+        
+        # Only flag if it's vague, short, AND has no CRM keywords
+        is_vague = matches_vague and is_short and not has_crm_keyword
         
         if is_vague:
-            # Generate a helpful clarifying response
             clarifying_response = self._generate_clarifying_response(query)
             return True, clarifying_response
         
@@ -356,22 +365,31 @@ class Verifier:
     ) -> str:
         """Verify if we have enough information to answer the query."""
         memory_context = memory.get_context_string()
+        action_count = len(memory.actions)
         
         prompt = f"""You are verifying if we have enough information to answer a CRM query.
 
 Original Query: {query}
-Query Analysis: {query_analysis}
 
-Actions Completed:
+Actions Completed ({action_count} so far):
 {memory_context}
 
-Analyze:
-1. Does the collected information fully answer the user's question?
-2. Are there any gaps or missing data?
-3. Should we continue or stop?
+STOP CRITERIA - Say STOP if ANY of these are true:
+1. We retrieved data AND already did a CRM_Reasoning analysis on it
+2. The query was a simple data lookup and we have the results
+3. We've done 2+ steps and have meaningful data/analysis
+4. We're repeating the same type of action (e.g., fetching same data again)
 
-Output in this format:
-ANALYSIS: <your analysis>
+CONTINUE CRITERIA - Say CONTINUE only if:
+1. We have NO data yet and need to fetch it
+2. We have raw data but haven't analyzed it when analysis was requested
+
+Current step: {step_count}
+
+BE DECISIVE - if we have data + analysis, STOP. Don't loop forever.
+
+Output:
+ANALYSIS: <brief assessment>
 CONCLUSION: STOP or CONTINUE"""
 
         return get_llm_response(prompt, max_tokens=300)
@@ -928,6 +946,11 @@ class AgentFlowCRMSolver:
         consecutive_no_tool = 0  # Track consecutive no-tool selections
         max_no_tool_attempts = 2  # Max attempts before giving up
         
+        # Track what we've done to detect loops
+        has_fetched_data = False
+        has_done_reasoning = False
+        last_tools = []  # Track last few tools used
+        
         while step_count < self.max_steps and (time.time() - start_time) < self.max_time:
             step_count += 1
             
@@ -1067,6 +1090,29 @@ class AgentFlowCRMSolver:
             
             # Update memory
             self.memory.add_action(step_count, tool_name, sub_goal, command, result)
+            
+            # Track what we've done to detect loops
+            if tool_name == "CRM_Database_Query" and result.get("success"):
+                has_fetched_data = True
+            if tool_name == "CRM_Reasoning" and result.get("success"):
+                has_done_reasoning = True
+            
+            last_tools.append(tool_name)
+            if len(last_tools) > 4:
+                last_tools.pop(0)
+            
+            # Force stop if we have data + reasoning (the common pattern)
+            if has_fetched_data and has_done_reasoning and step_count >= 2:
+                if self.verbose:
+                    print(f"\n✅ Auto-stop: Have data + analysis after {step_count} steps")
+                break
+            
+            # Detect tool oscillation loop (DB -> Reasoning -> DB -> Reasoning...)
+            if len(last_tools) >= 4:
+                if last_tools == ["CRM_Database_Query", "CRM_Reasoning", "CRM_Database_Query", "CRM_Reasoning"]:
+                    if self.verbose:
+                        print(f"\n⚠️ Detected loop pattern, stopping")
+                    break
             
             # Step 5: Verify if we should continue (Verifier)
             if self.verbose:

@@ -64,18 +64,33 @@ This application uses the [AgentFlow](https://github.com/lupantech/AgentFlow) pa
 
 | Component | Purpose | Location |
 |-----------|---------|----------|
-| **Planner** | Analyzes queries, decides tools, generates SQL | `backend/app/agentflow_crm.py` |
-| **Executor** | Runs CRM database tool, captures results | `backend/app/agentflow_crm.py` |
-| **Verifier** | Validates results, decides if more steps needed | `backend/app/agentflow_crm.py` |
-| **Memory** | Tracks action history across reasoning steps | `backend/app/agentflow_crm.py` |
-| **CRMDatabaseTool** | Executes SQL against PostgreSQL | `backend/agentflow_sdk/.../tools/crm_database/tool.py` |
+| **Planner** | Analyzes queries, decides tools, generates SQL | `backend/app/agentflow_solver.py` |
+| **Executor** | Runs CRM tools, captures results | `backend/app/agentflow_solver.py` |
+| **Verifier** | Validates results, detects loops, decides when to stop | `backend/app/agentflow_solver.py` |
+| **Memory** | Tracks action history across reasoning steps (wraps SDK Memory) | `backend/app/agentflow_solver.py` |
+| **CRM Tools** | Database queries, analytics, reasoning | `backend/app/agentflow_solver.py` |
+
+### Loop Detection & Smart Stopping
+
+The solver includes intelligent loop detection to prevent infinite reasoning cycles:
+
+```python
+# Auto-stops when we have data + analysis
+if has_fetched_data and has_done_reasoning and step_count >= 2:
+    break  # ✅ Task complete
+
+# Detects oscillation patterns (DB → Reasoning → DB → Reasoning...)
+if last_tools == ["CRM_Database_Query", "CRM_Reasoning", "CRM_Database_Query", "CRM_Reasoning"]:
+    break  # ⚠️ Loop detected
+```
 
 ### Two Integration Approaches
 
 | Approach | Location | Use Case |
 |----------|----------|----------|
-| **Custom Implementation** | `backend/app/agentflow_crm.py` | Production CRM workflows (simplified, optimized) |
-| **SDK-based** | `backend/test_agentflow.py` | Testing, advanced multi-tool scenarios |
+| **Production Solver** | `backend/app/agentflow_solver.py` | Full AgentFlow with loop detection, multi-tool support |
+| **Legacy Solver** | `backend/app/agentflow_crm.py` | Simplified single-tool CRM workflows |
+| **SDK Direct** | `backend/test_agentflow.py` | Testing with Base_Generator_Tool |
 
 ## 🛠️ Tech Stack
 
@@ -207,7 +222,8 @@ Antigravity/
 │   │   │   ├── pipeline_agent.py    # Pipeline forecasting
 │   │   │   └── followup_agent.py    # Follow-up automation
 │   │   ├── tools/               # CRM tools (database, ML, calendar)
-│   │   ├── agentflow_crm.py     # ⭐ Main AgentFlow solver
+│   │   ├── agentflow_solver.py  # ⭐ Main AgentFlow solver (production)
+│   │   ├── agentflow_crm.py     # Legacy simplified solver
 │   │   ├── agentflow_setup.py   # SDK path configuration
 │   │   ├── llm_engine.py        # Azure OpenAI integration
 │   │   ├── database.py          # PostgreSQL connection
@@ -221,6 +237,7 @@ Antigravity/
 │   │           ├── engine/          # LLM engines (Azure, OpenAI, Anthropic, etc.)
 │   │           └── tools/           # Tool implementations
 │   │               ├── base.py          # BaseTool abstract class
+│   │               ├── base_generator/  # General-purpose LLM tool
 │   │               ├── crm_database/    # CRM database tool
 │   │               ├── google_search/   # Web search tool
 │   │               ├── python_coder/    # Code execution tool
@@ -266,7 +283,8 @@ External Package:
          ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │  CRM Application (backend/app/)                                             │
-│  ├── agentflow_crm.py  → Custom AgentFlowSolver for CRM                     │
+│  ├── agentflow_crm.py  → Legacy AgentFlowSolver for CRM                │
+│  ├── agentflow_solver.py → Production solver with loop detection        │
 │  ├── llm_engine.py     → Azure OpenAI engine wrapper                        │
 │  ├── main.py           → FastAPI (uses create_agentflow_solver)             │
 │  └── agents/*.py       → Specialized agents using LLM engine                │
@@ -312,7 +330,7 @@ The AgentFlow SDK supports multiple LLM backends:
 The solver is initialized at application startup in `main.py`:
 
 ```python
-from app.agentflow_crm import create_agentflow_solver
+from app.agentflow_solver import create_agentflow_solver
 
 # Initialize solver with Planner → Executor → Verifier pipeline
 solver = create_agentflow_solver(max_steps=10, verbose=True)
@@ -329,6 +347,37 @@ result = solver.solve("How many hot leads do we have?")
 #     "components_used": ["Planner", "Executor", "Verifier", "Memory"]
 # }
 ```
+
+### Available CRM Tools
+
+| Tool | Purpose | LLM Required |
+|------|---------|--------------|
+| `CRM_Database_Query` | Execute SQL SELECT queries | No |
+| `CRM_Analytics` | Pipeline metrics, conversion rates | No |
+| `CRM_Reasoning` | Analyze data, generate insights | Yes |
+
+### Base Generator Tool (SDK)
+
+The AgentFlow SDK includes a `Base_Generator_Tool` for general-purpose LLM queries. This is **not** used in CRM (we use specialized database tools), but is available for other use cases.
+
+**Location:** `backend/agentflow_sdk/agentflow/agentflow/tools/base_generator/tool.py`
+
+```python
+from agentflow.tools.base_generator.tool import Base_Generator_Tool
+
+# Initialize with Azure OpenAI deployment
+tool = Base_Generator_Tool(model_string="gpt-5.2-chat")
+
+# Execute a general query
+response = tool.execute(query="What is the capital of France?")
+# Returns: "The capital of France is Paris."
+```
+
+**Key characteristics:**
+- `require_llm_engine = True` - Needs an LLM backend
+- Uses `create_llm_engine()` factory for model instantiation
+- Deterministic mode (`temperature=0.0`)
+- Best for general Q&A, summarization, step-by-step reasoning
 
 ### CRM Database Tool
 
@@ -384,15 +433,15 @@ class MyCustomTool(BaseTool):
 
 ### Memory Tracking
 
-Memory tracks all actions for multi-step reasoning:
+Memory tracks all actions for multi-step reasoning. The CRM solver wraps the SDK Memory class:
 
 ```python
-from app.agentflow_crm import Memory, ActionRecord
+from app.agentflow_solver import Memory
 
 memory = Memory()
 memory.add_action(
     step=1,
-    tool_name="crm_database_query",
+    tool_name="CRM_Database_Query",
     sub_goal="Get lead count",
     command="SELECT COUNT(*) FROM leads",
     result={"count": 150}
@@ -400,7 +449,11 @@ memory.add_action(
 
 # Get execution history
 actions = memory.get_actions()
-context = memory.get_context_summary()
+context = memory.get_context_string()
+
+# SDK integration
+memory.set_query("How many leads?")
+sdk_actions = memory.get_sdk_actions()  # Returns SDK-formatted actions
 ```
 
 ### Using the SDK Solver Directly
@@ -453,7 +506,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 │ └─────────┘ │     │                      │                                   │
 │             │     │                      ▼                                   │
 │ ┌─────────┐ │     │  ┌─────────────────────────────────────────────────────┐ │
-│ │Dashboard│ │     │  │          AgentFlowSolver (agentflow_crm.py)         │ │
+│ │Dashboard│ │     │  │        AgentFlowSolver (agentflow_solver.py)        │ │
 │ └─────────┘ │     │  │                                                     │ │
 │             │     │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │ │
 │ ┌─────────┐ │     │  │  │ Planner  │─▶│ Executor │─▶│ Verifier │          │ │
