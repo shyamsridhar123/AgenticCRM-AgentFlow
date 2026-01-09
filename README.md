@@ -15,20 +15,67 @@ A full-stack CRM application powered by **AgentFlow** architecture for intellige
 
 ## 🧠 AgentFlow Architecture
 
-This application uses the [AgentFlow](https://github.com/lupantech/AgentFlow) pattern for agentic reasoning:
+This application uses the [AgentFlow](https://github.com/lupantech/AgentFlow) pattern for agentic reasoning with multi-step query processing.
+
+### Architecture Overview
 
 ```
-User Query → Planner → Executor → Verifier → Response
-                ↓           ↓
-           Memory ← CRM Database Tool
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        AGENTFLOW QUERY PROCESSING                        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+  User Query: "Show me all hot leads from this month"
+         │
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  1. PLANNER                                                           │
+  │     • analyze_query() - Interprets user intent                        │
+  │     • generate_sql() - Creates database query                         │
+  │     Output: SELECT * FROM leads WHERE lead_rating = 'Hot'             │
+  └──────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  2. EXECUTOR                                                          │
+  │     • execute_tool("crm_database_query", sql)                         │
+  │     • Runs SQL against PostgreSQL                                     │
+  │     Output: {success: true, results: [...], result_count: 15}         │
+  └──────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  3. MEMORY                                                            │
+  │     • add_action(step, tool, goal, command, result)                   │
+  │     • Tracks execution history for multi-step reasoning               │
+  └──────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  4. VERIFIER                                                          │
+  │     • verificate_context() - Validates results                        │
+  │     • Decision: STOP (query answered) or CONTINUE (more steps)        │
+  └──────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+    Response to User
 ```
 
-| Component | Purpose |
-|-----------|---------|
-| **Planner** | Analyzes queries, generates SQL |
-| **Executor** | Runs database tools |
-| **Verifier** | Validates results |
-| **Memory** | Tracks execution history |
+### Core Components
+
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| **Planner** | Analyzes queries, decides tools, generates SQL | `backend/app/agentflow_crm.py` |
+| **Executor** | Runs CRM database tool, captures results | `backend/app/agentflow_crm.py` |
+| **Verifier** | Validates results, decides if more steps needed | `backend/app/agentflow_crm.py` |
+| **Memory** | Tracks action history across reasoning steps | `backend/app/agentflow_crm.py` |
+| **CRMDatabaseTool** | Executes SQL against PostgreSQL | `backend/agentflow_sdk/.../tools/crm_database/tool.py` |
+
+### Two Integration Approaches
+
+| Approach | Location | Use Case |
+|----------|----------|----------|
+| **Custom Implementation** | `backend/app/agentflow_crm.py` | Production CRM workflows (simplified, optimized) |
+| **SDK-based** | `backend/test_agentflow.py` | Testing, advanced multi-tool scenarios |
 
 ## 🛠️ Tech Stack
 
@@ -152,44 +199,226 @@ Access the application at **http://localhost:3000**
 Antigravity/
 ├── backend/
 │   ├── app/
-│   │   ├── agents/          # AI agents (legacy)
-│   │   ├── tools/           # Database, ML, Calendar tools
-│   │   ├── agentflow_crm.py # AgentFlow solver
-│   │   ├── llm_engine.py    # Azure OpenAI integration
-│   │   └── main.py          # FastAPI app
-│   ├── agentflow_sdk/       # AgentFlow SDK
+│   │   ├── agents/              # Specialized AI agents
+│   │   │   ├── nl_query_agent.py    # Natural language processing
+│   │   │   ├── lead_agent.py        # Lead scoring
+│   │   │   ├── email_agent.py       # Email drafting
+│   │   │   ├── meeting_agent.py     # Meeting scheduling
+│   │   │   ├── pipeline_agent.py    # Pipeline forecasting
+│   │   │   └── followup_agent.py    # Follow-up automation
+│   │   ├── tools/               # CRM tools (database, ML, calendar)
+│   │   ├── agentflow_crm.py     # ⭐ Main AgentFlow solver
+│   │   ├── agentflow_setup.py   # SDK path configuration
+│   │   ├── llm_engine.py        # Azure OpenAI integration
+│   │   ├── database.py          # PostgreSQL connection
+│   │   ├── config.py            # App configuration
+│   │   └── main.py              # FastAPI application
+│   ├── agentflow_sdk/           # AgentFlow SDK (vendored)
+│   │   └── agentflow/
+│   │       └── agentflow/
+│   │           ├── solver.py        # Core solver orchestrator
+│   │           ├── models/          # Planner, Executor, Verifier, Memory
+│   │           ├── engine/          # LLM engines (Azure, OpenAI, Anthropic, etc.)
+│   │           └── tools/           # Tool implementations
+│   │               ├── base.py          # BaseTool abstract class
+│   │               ├── crm_database/    # CRM database tool
+│   │               ├── google_search/   # Web search tool
+│   │               ├── python_coder/    # Code execution tool
+│   │               └── wikipedia_search/
+│   ├── test_agentflow.py        # AgentFlow integration tests
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── pages/           # Page components
-│   │   └── services/        # API services
+│   │   ├── components/          # React components
+│   │   │   ├── ChatInterface.tsx    # AI chat UI
+│   │   │   ├── Dashboard.tsx        # Main dashboard
+│   │   │   ├── LeadsList.tsx        # Leads management
+│   │   │   ├── PipelineView.tsx     # Pipeline visualization
+│   │   │   └── Sidebar.tsx          # Navigation
+│   │   ├── services/api.ts      # API client
+│   │   └── styles/              # CSS styles
 │   └── package.json
 └── database/
-    └── init_schema.sql      # Database schema
+    └── init_schema.sql          # PostgreSQL schema
 ```
+
+## 📦 Dependency Analysis
+
+### AgentFlow Integration
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DEPENDENCY FLOW                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+External Package:
+    agentflow @ git+https://github.com/lupantech/AgentFlow.git
+         │
+         ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│  AgentFlow SDK (backend/agentflow_sdk/)                                     │
+│  ├── solver.py         → Core Solver orchestrator                           │
+│  ├── models/           → Planner, Executor, Verifier, Memory                │
+│  ├── engine/           → Azure OpenAI, OpenAI, Anthropic, vLLM, etc.        │
+│  └── tools/            → BaseTool + CRM Database Tool                       │
+└────────────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│  CRM Application (backend/app/)                                             │
+│  ├── agentflow_crm.py  → Custom AgentFlowSolver for CRM                     │
+│  ├── llm_engine.py     → Azure OpenAI engine wrapper                        │
+│  ├── main.py           → FastAPI (uses create_agentflow_solver)             │
+│  └── agents/*.py       → Specialized agents using LLM engine                │
+└────────────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Frontend (frontend/)  → React UI with chat interface                       │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Dependencies
+
+| Category | Packages |
+|----------|----------|
+| **AgentFlow** | `agentflow @ git+https://github.com/lupantech/AgentFlow.git` |
+| **Azure OpenAI** | `openai>=1.0.0`, `azure-identity>=1.15.0` |
+| **Web Framework** | `fastapi>=0.109.0`, `uvicorn[standard]>=0.27.0`, `pydantic>=2.5.0` |
+| **Database** | `sqlalchemy>=2.0.25`, `psycopg2-binary>=2.9.9`, `asyncpg>=0.29.0` |
+| **ML/Data** | `numpy>=1.26.0`, `pandas>=2.1.0`, `scikit-learn>=1.4.0` |
+| **AgentFlow SDK Internal** | `graphviz`, `flask`, `agentops`, `litellm`, `langgraph`, `langchain` |
+
+### LLM Engine Support
+
+The AgentFlow SDK supports multiple LLM backends:
+
+| Engine | File | Status |
+|--------|------|--------|
+| Azure OpenAI | `engine/azure_openai.py` | ✅ Primary (GPT-5.2) |
+| OpenAI | `engine/openai.py` | ✅ Supported |
+| Anthropic | `engine/anthropic.py` | ✅ Supported |
+| vLLM | `engine/vllm.py` | ✅ Supported |
+| Together | `engine/together.py` | ✅ Supported |
+| DeepSeek | `engine/deepseek.py` | ✅ Supported |
+| Gemini | `engine/gemini.py` | ✅ Supported |
+| Ollama | `engine/ollama.py` | ✅ Supported |
+| LiteLLM | `engine/litellm.py` | ✅ Supported |
 
 ## 🔧 AgentFlow Components
 
-### CRM Database Tool
+### AgentFlow Solver (Main Entry Point)
+
+The solver is initialized at application startup in `main.py`:
+
 ```python
 from app.agentflow_crm import create_agentflow_solver
 
-solver = create_agentflow_solver(verbose=True)
-result = solver.solve("How many leads do we have?")
-# Returns: {"success": True, "result_count": 17, "agentflow": True}
+# Initialize solver with Planner → Executor → Verifier pipeline
+solver = create_agentflow_solver(max_steps=10, verbose=True)
+
+# Process natural language query
+result = solver.solve("How many hot leads do we have?")
+# Returns: {
+#     "success": True,
+#     "query": "How many hot leads do we have?",
+#     "generated_sql": "SELECT COUNT(*) FROM leads WHERE lead_rating = 'Hot';",
+#     "result_count": 15,
+#     "results": [...],
+#     "agentflow": True,
+#     "components_used": ["Planner", "Executor", "Verifier", "Memory"]
+# }
+```
+
+### CRM Database Tool
+
+The custom CRM tool extends AgentFlow's `BaseTool`:
+
+```python
+from agentflow.tools.base import BaseTool
+
+class CRMDatabaseTool(BaseTool):
+    """Execute SQL SELECT queries against the CRM database."""
+    
+    require_llm_engine = False
+    
+    def __init__(self):
+        super().__init__(
+            tool_name="crm_database_query",
+            tool_description="Execute SQL queries against CRM database",
+            input_types={"query": "str - A valid PostgreSQL SELECT query"},
+            output_type="list[dict] - Query results"
+        )
+    
+    def execute(self, query: str) -> dict:
+        # Security: Only SELECT queries allowed
+        if not query.strip().upper().startswith("SELECT"):
+            return {"success": False, "error": "Only SELECT queries allowed"}
+        
+        results = execute_query(query, {})
+        return {"success": True, "results": results}
 ```
 
 ### Custom Tool Development
-Extend `CRMDatabaseTool` pattern:
+
+Create new tools by extending the `BaseTool` pattern:
+
 ```python
-class MyCustomTool:
-    def __init__(self):
-        self.tool_name = "my_tool"
+class MyCustomTool(BaseTool):
+    require_llm_engine = True  # Set True if tool needs LLM
     
-    def execute(self, **kwargs) -> dict:
-        # Tool logic here
+    def __init__(self, model_string=None):
+        super().__init__(
+            tool_name="my_custom_tool",
+            tool_description="Description of what the tool does",
+            input_types={"param1": "str", "param2": "int"},
+            output_type="dict",
+            demo_commands=["my_custom_tool(param1='value', param2=10)"]
+        )
+        self.model_string = model_string
+    
+    def execute(self, param1: str, param2: int) -> dict:
+        # Your tool logic here
         return {"success": True, "result": ...}
+```
+
+### Memory Tracking
+
+Memory tracks all actions for multi-step reasoning:
+
+```python
+from app.agentflow_crm import Memory, ActionRecord
+
+memory = Memory()
+memory.add_action(
+    step=1,
+    tool_name="crm_database_query",
+    sub_goal="Get lead count",
+    command="SELECT COUNT(*) FROM leads",
+    result={"count": 150}
+)
+
+# Get execution history
+actions = memory.get_actions()
+context = memory.get_context_summary()
+```
+
+### Using the SDK Solver Directly
+
+For advanced use cases with multiple tools:
+
+```python
+from agentflow.solver import construct_solver
+
+solver = construct_solver(
+    llm_engine_name="gpt-4o",
+    enabled_tools=["Base_Generator_Tool", "Python_Coder_Tool", "Google_Search_Tool"],
+    output_types="final,direct",
+    max_steps=10,
+    verbose=True
+)
+
+result = solver.solve("What is the capital of France?")
 ```
 
 ## 📄 License
@@ -198,7 +427,63 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-- [AgentFlow](https://github.com/lupantech/AgentFlow) - Agentic architecture
-- [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) - LLM backend
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-- [React](https://react.dev/) - Frontend framework
+- [AgentFlow](https://github.com/lupantech/AgentFlow) - Agentic reasoning architecture (Planner→Executor→Verifier pattern)
+- [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) - LLM backend (GPT-5.2/O1 models)
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [React](https://react.dev/) - Frontend UI framework
+- [LangChain](https://langchain.com/) - LLM orchestration (used in AgentFlow SDK)
+- [LiteLLM](https://github.com/BerriAI/litellm) - Multi-provider LLM proxy
+
+---
+
+## 📊 Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              FULL SYSTEM ARCHITECTURE                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐     ┌──────────────────────────────────────────────────────────┐
+│   Frontend  │     │                      Backend                              │
+│   (React)   │     │                                                          │
+│             │     │  ┌─────────────────────────────────────────────────────┐ │
+│ ┌─────────┐ │     │  │                FastAPI (main.py)                    │ │
+│ │  Chat   │ │────▶│  │  POST /api/agent/query                              │ │
+│ │Interface│ │     │  └───────────────────┬─────────────────────────────────┘ │
+│ └─────────┘ │     │                      │                                   │
+│             │     │                      ▼                                   │
+│ ┌─────────┐ │     │  ┌─────────────────────────────────────────────────────┐ │
+│ │Dashboard│ │     │  │          AgentFlowSolver (agentflow_crm.py)         │ │
+│ └─────────┘ │     │  │                                                     │ │
+│             │     │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │ │
+│ ┌─────────┐ │     │  │  │ Planner  │─▶│ Executor │─▶│ Verifier │          │ │
+│ │Pipeline │ │     │  │  └────┬─────┘  └────┬─────┘  └────┬─────┘          │ │
+│ │  View   │ │     │  │       │             │             │                │ │
+│ └─────────┘ │     │  │       ▼             ▼             ▼                │ │
+└─────────────┘     │  │  ┌──────────────────────────────────────┐          │ │
+                    │  │  │              Memory                   │          │ │
+                    │  │  └──────────────────────────────────────┘          │ │
+                    │  └───────────────────┬─────────────────────────────────┘ │
+                    │                      │                                   │
+                    │                      ▼                                   │
+                    │  ┌─────────────────────────────────────────────────────┐ │
+                    │  │           CRMDatabaseTool                           │ │
+                    │  │  • Executes SQL SELECT queries                      │ │
+                    │  │  • Security: Only SELECT allowed                    │ │
+                    │  └───────────────────┬─────────────────────────────────┘ │
+                    │                      │                                   │
+                    │                      ▼                                   │
+                    │  ┌─────────────────────────────────────────────────────┐ │
+                    │  │           LLM Engine (llm_engine.py)                │ │
+                    │  │  • Azure OpenAI (GPT-5.2)                           │ │
+                    │  │  • Fallback to pattern matching                     │ │
+                    │  └─────────────────────────────────────────────────────┘ │
+                    └──────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+                    ┌──────────────────────────────────────────────────────────┐
+                    │                    PostgreSQL                             │
+                    │  Tables: leads, contacts, accounts, opportunities,        │
+                    │          activities, campaigns, users                     │
+                    └──────────────────────────────────────────────────────────┘
+```
