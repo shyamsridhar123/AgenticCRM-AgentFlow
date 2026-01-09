@@ -11,6 +11,24 @@ import {
 } from 'lucide-react';
 import { getPipelineHealth, getPipelineForecast, getUpcomingMeetings } from '../services/api';
 
+/**
+ * Formats a currency value with appropriate denomination (K, M, B)
+ * - Under 1,000: shows as-is (e.g., $500)
+ * - 1,000 - 999,999: shows in K (e.g., $150K)
+ * - 1,000,000 - 999,999,999: shows in M (e.g., $11.5M)
+ * - 1,000,000,000+: shows in B (e.g., $1.2B)
+ */
+function formatCurrency(value: number): string {
+    if (value >= 1_000_000_000) {
+        return `$${(value / 1_000_000_000).toFixed(1)}B`;
+    } else if (value >= 1_000_000) {
+        return `$${(value / 1_000_000).toFixed(1)}M`;
+    } else if (value >= 1_000) {
+        return `$${(value / 1_000).toFixed(0)}K`;
+    }
+    return `$${value.toFixed(0)}`;
+}
+
 function Dashboard() {
     const { data: health } = useQuery({
         queryKey: ['pipeline-health'],
@@ -68,7 +86,7 @@ function Dashboard() {
 
                 <div className="stat-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div className="stat-value">${(totalPipeline / 1000).toFixed(0)}K</div>
+                        <div className="stat-value">{formatCurrency(totalPipeline)}</div>
                         <div style={{
                             padding: 'var(--space-sm)',
                             background: 'rgba(34, 197, 94, 0.15)',
@@ -86,7 +104,7 @@ function Dashboard() {
 
                 <div className="stat-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div className="stat-value">${(forecast30 / 1000).toFixed(0)}K</div>
+                        <div className="stat-value">{formatCurrency(forecast30)}</div>
                         <div style={{
                             padding: 'var(--space-sm)',
                             background: 'rgba(34, 211, 238, 0.15)',
@@ -246,7 +264,7 @@ function RiskDealItem({ title, company, value, risk }: { title: string; company:
                 <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{company}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 600, color: 'var(--color-accent-success)' }}>${(value / 1000).toFixed(0)}K</div>
+                <div style={{ fontWeight: 600, color: 'var(--color-accent-success)' }}>{formatCurrency(value)}</div>
                 <span className="badge badge-warning">{risk}</span>
             </div>
         </div>

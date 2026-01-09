@@ -4,6 +4,8 @@ import Dashboard from './components/Dashboard';
 import ChatInterface from './components/ChatInterface';
 import LeadsList from './components/LeadsList';
 import PipelineView from './components/PipelineView';
+import EmailsView from './components/EmailsView';
+import MeetingsView from './components/MeetingsView';
 
 function App() {
     return (
@@ -15,6 +17,8 @@ function App() {
                     <Route path="/chat" element={<ChatInterface />} />
                     <Route path="/leads" element={<LeadsList />} />
                     <Route path="/pipeline" element={<PipelineView />} />
+                    <Route path="/emails" element={<EmailsView />} />
+                    <Route path="/meetings" element={<MeetingsView />} />
                 </Routes>
             </main>
         </div>
