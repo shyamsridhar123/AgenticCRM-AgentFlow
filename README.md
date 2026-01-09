@@ -478,7 +478,24 @@ result = solver.solve("What is the capital of France?")
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## � Citation
+
+If you use this project or the AgentFlow architecture, please cite the original paper:
+
+```bibtex
+@article{li2025flow,
+  title={In-the-Flow Agentic System Optimization for Effective Planning and Tool Use},
+  author={Li, Zhuofeng and Zhang, Haoxiang and Han, Seungju and Liu, Sheng and Xie, Jianwen and Zhang, Yu and Choi, Yejin and Zou, James and Lu, Pan},
+  journal={arXiv preprint arXiv:2510.05592},
+  year={2025}
+}
+```
+
+📄 **Paper:** [arXiv:2510.05592](https://arxiv.org/abs/2510.05592)  
+🌐 **Project:** [agentflow.stanford.edu](https://agentflow.stanford.edu/)  
+🎥 **Tutorial:** [YouTube](https://www.youtube.com/watch?v=kIQbCQIH1SI)
+
+## �🙏 Acknowledgments
 
 - [AgentFlow](https://github.com/lupantech/AgentFlow) - Agentic reasoning architecture (Planner→Executor→Verifier pattern)
 - [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) - LLM backend (GPT-5.2/O1 models)
