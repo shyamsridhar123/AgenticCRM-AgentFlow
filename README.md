@@ -4,6 +4,10 @@ A full-stack CRM application powered by **AgentFlow** architecture for intellige
 
 ![AgentFlow CRM](https://img.shields.io/badge/AgentFlow-Enabled-brightgreen) ![Python](https://img.shields.io/badge/Python-3.11+-blue) ![React](https://img.shields.io/badge/React-18-61dafb) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791)
 
+<p align="center">
+  <img src="assets/agentflow-crm-comic.png" alt="AgenticCRM-AgentFlow: Your Autonomous Workflow Wizards!" width="100%">
+</p>
+
 ## ✨ Features
 
 - **🤖 AI Chat Interface** - Natural language queries against your CRM data
